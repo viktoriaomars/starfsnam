@@ -34,9 +34,9 @@ with open("test.vcf", "r") as f:
         #print (id2gt)
         
 with open("test.four", "r") as g:
-    four_zeros = [0, 0, 0]
-    four_ones = [0, 0, 0]
-    four_twos = [0, 0, 0]
+    zeros = [0, 0, 0]
+    ones = [0, 0, 0]
+    twos = [0, 0, 0]
     
     for line in g:
         four_columns = line.rstrip().split("\t")
@@ -61,16 +61,13 @@ with open("test.four", "r") as g:
             gt2 = int(gt2)
             
             if (gt1 + gt2) == 0:
-                four_zeros[variant_gt[sample_index]] +=1
-                #print(four_zeros)
+                zeros[variant_gt[sample_index]] +=1
             elif (gt1 + gt2) == 1:
-                four_ones[variant_gt[sample_index]] +=1
-                #print(four_ones)
+                ones[variant_gt[sample_index]] +=1
             else:
-                four_twos[variant_gt[sample_index]] +=1
-                #print(four_twos)
+                twos[variant_gt[sample_index]] +=1
             
-            #er variant_gt sama og gt1 og gt2
+            
             if variant_gt[sample_index] == (gt1 + gt2):
                 print(sample_no, "is the same")
             else:
@@ -81,6 +78,6 @@ with open("test.four", "r") as g:
         
         
 print("  ", "0", "1", "2", sep = "  ")
-print("0:", four_zeros)
-print("1:", four_ones)
-print("2:", four_twos)
+print("0:", zeros)
+print("1:", ones)
+print("2:", twos)
