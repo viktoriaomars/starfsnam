@@ -5,6 +5,8 @@ Created on Thu Jan 11 15:08:35 2018
 @author: Viktoria
 """
 
+from __future__ import print_function
+
 import argparse
 
 id2gt = {} # Dictionary/hash table
@@ -12,10 +14,12 @@ samples2index = {}
 four_samples = []
 
 parser = argparse.ArgumentParser()
-parser.add_argument('vcf', nargs='?', type=argparse.FileType('r'))
-parser.add_argument('four', nargs='?', type=argparse.FileType('r'))
+parser.add_argument('vcf', type=argparse.FileType('r'), help="VCF file with variants")
+parser.add_argument('four', type=argparse.FileType('r'), help="Four file with imputed genotypes")
+parser.add_argument('--min_gq', type=int, default=0, help="Minimum GQ value")
+parser.add_argument("--verbose", help="Increase output verbosity", action="store_true")
+#args = parser.parse_args("test.vcf test.four --min_gq 30".split(" "))
 args = parser.parse_args()
-
 
 for line in args.vcf:
     if line.startswith("##"):
@@ -24,20 +28,32 @@ for line in args.vcf:
         header = line.rstrip().split("\t")
         for s in range(9, len(header)):
             samples2index[header[s]] = s-9
+        continue
         
         
     columns = line.split("\t")
     variant_id = columns[2]
-    id2gt[variant_id] = [0]*(len(columns) - 9)
+    id2gt[variant_id] = [-1]*(len(columns) - 9)
+    gq_index = columns[8].split(":").index("GQ")
         
     for s in range(9, len(columns)):
-        gt=columns[s].split(":")[0]
-        id2gt[variant_id][s-9] = gt.count("1")
+        gt = columns[s].split(":")[0]
+        gq = columns[s].split(":")[gq_index]
+        if args.min_gq > int(gq):
+            continue
+        else:
+            id2gt[variant_id][s-9] = gt.count("1")
 
 
 zeros = [0, 0, 0]
 ones = [0, 0, 0]
 twos = [0, 0, 0]
+
+correct_count = 0
+incorrect_count = 0
+nodata_count = 0
+prev_variant = ""
+print("Variant", "Correct", "Incorrect", "No Data")
     
 for line in args.four:
     four_columns = line.rstrip().split("\t")
@@ -45,6 +61,19 @@ for line in args.four:
     variant = four_columns[1]
     gt1 = four_columns[2]
     gt2 = four_columns[3]
+    
+    if variant != prev_variant:
+        if prev_variant == "":
+            prev_variant = variant
+        else:
+        
+            print(prev_variant, correct_count, incorrect_count, nodata_count)
+            prev_variant = variant
+            correct_count = 0
+            incorrect_count = 0
+            nodata_count = 0
+            ## Prenta fjöldi réttra og rangra gilda og setja þau sem, núll
+        
         
         
     if sample_no not in samples2index:
@@ -56,8 +85,7 @@ for line in args.four:
     sample_index = samples2index[sample_no]
     variant_gt = id2gt[variant]
         
-
-    if ((gt1 == '0') or (gt1 == '1')) and ((gt2 == '0') or (gt2 == '1')):
+    if variant_gt[sample_index] != -1 and ((gt1 == '0') or (gt1 == '1')) and ((gt2 == '0') or (gt2 == '1')):
         gt1 = int(gt1)
         gt2 = int(gt2)
             
@@ -67,17 +95,25 @@ for line in args.four:
             ones[variant_gt[sample_index]] +=1
         else:
             twos[variant_gt[sample_index]] +=1
-            
+        
             
         if variant_gt[sample_index] == (gt1 + gt2):
-            print(sample_no, "is the same")
+            correct_count +=1
+            if args.verbose:
+                print(sample_no, "is the same")
         else:
-            print("Mismatch on", variant, "in", sample_no)
+            incorrect_count +=1
+            if args.verbose:
+                print("Mismatch on", variant, "in", sample_no)
+        
     else:
-        print("Data missing")
-                     
-        
-        
+        nodata_count +=1
+        if args.verbose:
+            print("Data missing")
+            
+                  
+print(prev_variant, correct_count, incorrect_count, nodata_count)
+            
 print("  ", "0", "1", "2", sep = "  ")
 print("0:", zeros)
 print("1:", ones)
