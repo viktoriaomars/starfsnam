@@ -11,6 +11,7 @@ import argparse
 
 id2gt = {} # Dictionary/hash table
 samples2index = {}
+samples = []
 four_samples = []
 
 parser = argparse.ArgumentParser()
@@ -28,6 +29,7 @@ for line in args.vcf:
         header = line.rstrip().split("\t")
         for s in range(9, len(header)):
             samples2index[header[s]] = s-9
+            samples.append(header[s])
         continue
         
         
@@ -53,7 +55,9 @@ correct_count = 0
 incorrect_count = 0
 nodata_count = 0
 prev_variant = ""
-print("Variant", "Correct", "Incorrect", "No Data")
+print("Variant", "Correct", "Incorrect", "No Data", "Incorrect sample with highest GQ")
+mismatch = {}
+summary = {}
     
 for line in args.four:
     four_columns = line.rstrip().split("\t")
@@ -62,18 +66,18 @@ for line in args.four:
     gt1 = four_columns[2]
     gt2 = four_columns[3]
     
+    
     if variant != prev_variant:
         if prev_variant == "":
             prev_variant = variant
+            mismatch[variant] = [False] * len(samples2index)
         else:
-        
-            print(prev_variant, correct_count, incorrect_count, nodata_count)
+            summary[prev_variant] = [correct_count, incorrect_count, nodata_count]
             prev_variant = variant
             correct_count = 0
             incorrect_count = 0
             nodata_count = 0
-            ## Prenta fjöldi réttra og rangra gilda og setja þau sem, núll
-        
+            mismatch[variant] = [False] * len(samples2index)
         
         
     if sample_no not in samples2index:
@@ -84,6 +88,7 @@ for line in args.four:
         
     sample_index = samples2index[sample_no]
     variant_gt = id2gt[variant]
+    
         
     if variant_gt[sample_index] != -1 and ((gt1 == '0') or (gt1 == '1')) and ((gt2 == '0') or (gt2 == '1')):
         gt1 = int(gt1)
@@ -103,16 +108,53 @@ for line in args.four:
                 print(sample_no, "is the same")
         else:
             incorrect_count +=1
+            mismatch[variant][sample_index] = True
+            
             if args.verbose:
-                print("Mismatch on", variant, "in", sample_no)
+                print("Mismatch on", variant, "in", sample_no, sample_index)
         
     else:
         nodata_count +=1
         if args.verbose:
             print("Data missing")
+
+summary[prev_variant] = [correct_count, incorrect_count, nodata_count]
+
+# Seek to beginning of file            
+args.vcf.seek(0, 0)
             
-                  
-print(prev_variant, correct_count, incorrect_count, nodata_count)
+for line in args.vcf:
+    if line.startswith("#"):
+        continue
+    
+    
+    highest_sample = ""
+    highest_gq = 0
+            
+    columns = line.split("\t")
+    variant_id = columns[2]
+    gq_index = columns[8].split(":").index("GQ")
+    
+    if variant_id not in id2gt or variant_id not in mismatch: 
+        continue
+    
+    for s in range(9, len(columns)):
+        sample_index = s - 9
+        gt = columns[s].split(":")[0]
+        gq = columns[s].split(":")[gq_index]
+
+    
+        if mismatch[variant_id][sample_index] == True:
+            if int(gq) >= highest_gq:
+                highest_sample = samples[sample_index]
+                highest_gq = int(gq)
+                    
+    # Gripa drasl ur usmmary hakkatöflunni
+    if variant_id in summary:
+        print(variant_id, " ".join([str(x) for x in summary[variant_id]]), highest_sample, highest_gq)
+                      
+                    
+                       
             
 print("  ", "0", "1", "2", sep = "  ")
 print("0:", zeros)
