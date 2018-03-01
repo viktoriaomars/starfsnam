@@ -13,6 +13,7 @@ id2gt = {} # Dictionary/hash table for genotypes with variant id as key
 samples2index = {} #Hash tables for sample indexes, indices as key
 samples = [] #List of samples
 four_samples = [] #List of samples in four file
+id2info = {} # Hash table for info (AD)
 
 #Argument parser for input
 parser = argparse.ArgumentParser()
@@ -20,7 +21,8 @@ parser.add_argument('vcf', type=argparse.FileType('r'), help="VCF file with vari
 parser.add_argument('four', type=argparse.FileType('r'), help="Four file with imputed genotypes")
 parser.add_argument('--min_gq', type=int, default=0, help="Minimum GQ value")
 parser.add_argument("--verbose", help="Increase output verbosity", action="store_true")
-#args = parser.parse_args("test.vcf test.four --min_gq 30".split(" "))
+parser.add_argument('outfile', type=argparse.FileType('w'), help="Output file")
+#args = parser.parse_args("test.vcf test.four --min_gq 30 output.txt".split(" "))
 args = parser.parse_args()
 
 for line in args.vcf:
@@ -40,10 +42,15 @@ for line in args.vcf:
     variant_id = columns[2] #Current variant id
     id2gt[variant_id] = [-1]*(len(columns) - 9) #Initialize the id2gt values
     gq_index = columns[8].split(":").index("GQ") #Find index of GQ value
+    id2info[variant_id] = [-1]*(len(columns) - 9) #initialize id2info
+    ad_index = columns[8].split(":").index("AD") #Find index of AD value
         
     for s in range(9, len(columns)):
         gt = columns[s].split(":")[0] #Current genotype
         gq = columns[s].split(":")[gq_index] #Current GQ value
+        temp_ad = columns[s].split(":")[ad_index] #Current AD value
+        ad = temp_ad.split(",") #Split REF AD and ALT AD into two columns
+        id2info[variant_id][s-9] = ad #Update values of ad for each variant to current AD value
         #Only want to check samples that have a high enough GQ value
         if args.min_gq > int(gq):
             continue
@@ -62,6 +69,17 @@ prev_variant_id = ""
 print("Variant", "Correct", "Incorrect", "No Data", "Incorrect sample with highest GQ") #Print header for table
 mismatch = {} #Hash table for mismatched variant
 summary = {} #Hsh table for correct/incorrect/no data information for variant
+
+args.outfile.write("GT") #Skrifa inn header fyrir outfile
+args.outfile.write("\t")
+args.outfile.write("REF_AD")
+args.outfile.write("\t")
+args.outfile.write("ALT_AD")
+args.outfile.write("\t")
+args.outfile.write("Variant")
+args.outfile.write("\t")
+args.outfile.write("Sample")
+args.outfile.write("\n")
     
 for line in args.four:
     four_columns = line.rstrip().split("\t") #Find columns in four file
@@ -97,7 +115,7 @@ for line in args.four:
     variant_gt = id2gt[variant_id] #Extract relevant genotype from vcf file for the current variant in four file
     
     #Only want to compare and count valid genotypes in four file (0 or 1)    
-    if variant_gt[sample_index] != -1 and ((gt1 == '0') or (gt1 == '1')) and ((gt2 == '0') or (gt2 == '1')):
+    if variant_gt[sample_index] != -1 and ((gt1 == '0') or (gt1 == '1')) and ((gt2 == '0') or (gt2 == '1')):        
         #Change genotypes from string to int
         gt1 = int(gt1)
         gt2 = int(gt2)
@@ -108,6 +126,19 @@ for line in args.four:
             ones[variant_gt[sample_index]] +=1
         else:
             twos[variant_gt[sample_index]] +=1
+            
+        gt = gt1 + gt2
+        ad = id2info[variant_id][1]
+        args.outfile.write(str(gt)) #Skrifa inn genatýpu
+        args.outfile.write("\t")
+        args.outfile.write(ad[0]) #Skrifa inn AD REF
+        args.outfile.write("\t")
+        args.outfile.write(ad[1]) #Skrifa inn AD ALT
+        args.outfile.write("\t")
+        args.outfile.write(variant_id) #Skrifa inn variant
+        args.outfile.write("\t")
+        args.outfile.write(sample_name) #Skrifa inn sample
+        args.outfile.write("\n")
         
         #Check if the genotype (0, 1 or 2) is the same or not  in vcf and four file and count instances    
         if variant_gt[sample_index] == (gt1 + gt2):
