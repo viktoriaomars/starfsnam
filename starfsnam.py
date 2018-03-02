@@ -128,7 +128,7 @@ for line in args.four:
             twos[variant_gt[sample_index]] +=1
             
         gt = gt1 + gt2
-        ad = id2info[variant_id][1]
+        ad = id2info[variant_id][sample_index]
         args.outfile.write(str(gt)) #Skrifa inn genatýpu
         args.outfile.write("\t")
         args.outfile.write(ad[0]) #Skrifa inn AD REF
