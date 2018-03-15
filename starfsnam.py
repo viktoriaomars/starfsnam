@@ -13,17 +13,21 @@ id2gt = {} # Dictionary/hash table for genotypes with variant id as key
 samples2index = {} #Hash tables for sample indexes, indices as key
 samples = [] #List of samples
 four_samples = [] #List of samples in four file
-id2info = {} # Hash table for info (AD)
+id2ad = {} #Hash table for AD
+id2info = {} # Hash table for info
 
 #Argument parser for input
 parser = argparse.ArgumentParser()
 parser.add_argument('vcf', type=argparse.FileType('r'), help="VCF file with variants")
 parser.add_argument('four', type=argparse.FileType('r'), help="Four file with imputed genotypes")
 parser.add_argument('--min_gq', type=int, default=0, help="Minimum GQ value")
+parser.add_argument('--info', default='', help="Info to send to outfile, comma seperated")
 parser.add_argument("--verbose", help="Increase output verbosity", action="store_true")
-parser.add_argument('outfile', type=argparse.FileType('w'), help="Output file")
-#args = parser.parse_args("test.vcf test.four --min_gq 30 output.txt".split(" "))
+parser.add_argument('outAD', type=argparse.FileType('w'), help="AD output file")
+parser.add_argument('outinfo', type=argparse.FileType('w'), help="Info output file")
+#args = parser.parse_args("test.vcf test.four --min_gq 30 --info AC,AN output_ad.txt output_info.txt".split(" "))
 args = parser.parse_args()
+
 
 for line in args.vcf:
     #Skip all lines that start with ##
@@ -36,26 +40,28 @@ for line in args.vcf:
             samples2index[header[s]] = s-9 #Index of each sample found and put into hash table
             samples.append(header[s]) #Sample names appended to the list samples
         continue
-        
+    
         
     columns = line.split("\t") #Seperate columns
     variant_id = columns[2] #Current variant id
     id2gt[variant_id] = [-1]*(len(columns) - 9) #Initialize the id2gt values
     gq_index = columns[8].split(":").index("GQ") #Find index of GQ value
-    id2info[variant_id] = [-1]*(len(columns) - 9) #initialize id2info
+    id2ad[variant_id] = [-1]*(len(columns) - 9) #initialize id2ad
     ad_index = columns[8].split(":").index("AD") #Find index of AD value
+        
         
     for s in range(9, len(columns)):
         gt = columns[s].split(":")[0] #Current genotype
         gq = columns[s].split(":")[gq_index] #Current GQ value
         temp_ad = columns[s].split(":")[ad_index] #Current AD value
         ad = temp_ad.split(",") #Split REF AD and ALT AD into two columns
-        id2info[variant_id][s-9] = ad #Update values of ad for each variant to current AD value
+        id2ad[variant_id][s-9] = ad #Update values of ad for each variant to current AD value
         #Only want to check samples that have a high enough GQ value
         if args.min_gq > int(gq):
             continue
         else:
             id2gt[variant_id][s-9] = gt.count("1") #Update values of gt for each varian id to 0, 1 or 2 (how many changes)
+
 
 #Initilize arrays for counting of genotypes zeros, ones and twos 
 zeros = [0, 0, 0]
@@ -70,16 +76,16 @@ print("Variant", "Correct", "Incorrect", "No Data", "Incorrect sample with highe
 mismatch = {} #Hash table for mismatched variant
 summary = {} #Hsh table for correct/incorrect/no data information for variant
 
-args.outfile.write("GT") #Skrifa inn header fyrir outfile
-args.outfile.write("\t")
-args.outfile.write("REF_AD")
-args.outfile.write("\t")
-args.outfile.write("ALT_AD")
-args.outfile.write("\t")
-args.outfile.write("Variant")
-args.outfile.write("\t")
-args.outfile.write("Sample")
-args.outfile.write("\n")
+args.outAD.write("GT") #Skrifa inn header fyrir outfile
+args.outAD.write("\t")
+args.outAD.write("REF_AD")
+args.outAD.write("\t")
+args.outAD.write("ALT_AD")
+args.outAD.write("\t")
+args.outAD.write("Variant")
+args.outAD.write("\t")
+args.outAD.write("Sample")
+args.outAD.write("\n")
     
 for line in args.four:
     four_columns = line.rstrip().split("\t") #Find columns in four file
@@ -128,17 +134,17 @@ for line in args.four:
             twos[variant_gt[sample_index]] +=1
             
         gt = gt1 + gt2
-        ad = id2info[variant_id][sample_index]
-        args.outfile.write(str(gt)) #Skrifa inn genatýpu
-        args.outfile.write("\t")
-        args.outfile.write(ad[0]) #Skrifa inn AD REF
-        args.outfile.write("\t")
-        args.outfile.write(ad[1]) #Skrifa inn AD ALT
-        args.outfile.write("\t")
-        args.outfile.write(variant_id) #Skrifa inn variant
-        args.outfile.write("\t")
-        args.outfile.write(sample_name) #Skrifa inn sample
-        args.outfile.write("\n")
+        ad = id2ad[variant_id][sample_index]
+        args.outAD.write(str(gt)) #Skrifa inn genatýpu
+        args.outAD.write("\t")
+        args.outAD.write(ad[0]) #Skrifa inn AD REF
+        args.outAD.write("\t")
+        args.outAD.write(ad[1]) #Skrifa inn AD ALT
+        args.outAD.write("\t")
+        args.outAD.write(variant_id) #Skrifa inn variant
+        args.outAD.write("\t")
+        args.outAD.write(sample_name) #Skrifa inn sample
+        args.outAD.write("\n")
         
         #Check if the genotype (0, 1 or 2) is the same or not  in vcf and four file and count instances    
         if variant_gt[sample_index] == (gt1 + gt2):
@@ -201,3 +207,51 @@ print("  ", "0", "1", "2", sep = "  ")
 print("0:", zeros)
 print("1:", ones)
 print("2:", twos)
+
+# Seek to beginning of file            
+args.vcf.seek(0, 0)
+#Write header 
+infos = args.info.split(",")
+args.outinfo.write("Variant")
+args.outinfo.write("\t")
+for s in range(0, len(infos)):
+    if s == len(infos) - 1:
+        args.outinfo.write(infos[s])
+    else:
+        args.outinfo.write(infos[s])
+        args.outinfo.write("\t")
+args.outinfo.write("\n")
+           
+for line in args.vcf:
+    #Skip all lines starting with #
+    if line.startswith("#"):
+        continue
+            
+    columns = line.split("\t") #Columns in vcf file
+    variant_id = columns[2] #Current variant id
+    
+    variant_info = columns[7].split(";") #Current variant info
+    infos = args.info.split(",") #Input infos to extract
+    id2info[variant_id] = [0]*(len(infos)) #initialize id2info
+
+        
+    args.outinfo.write(variant_id) #Write variant
+    args.outinfo.write("\t")
+    #Wan to check for each input
+    for s in range(0, len(infos)):
+        curr_info = infos[s] #current input info
+        for var_info in variant_info:
+            #For var_info that starts with input info + =
+            if var_info.startswith(curr_info + "="):
+                curr_index = variant_info.index(var_info) #Find index of info in vcf
+                id2info[variant_id][s] = variant_info[curr_index] #Add current vcf info to id2info
+                break
+        out_info = id2info[variant_id][s].split("=")[1] #Find the number for this info
+        #Write info
+        if s == len(infos) - 1:
+            args.outinfo.write(out_info)
+        else:
+            args.outinfo.write(out_info)
+            args.outinfo.write("\t")
+    
+    args.outinfo.write("\n")
