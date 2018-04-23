@@ -25,8 +25,8 @@ parser.add_argument('--info', default='', help="Info to send to outfile, comma s
 parser.add_argument("--verbose", help="Increase output verbosity", action="store_true")
 parser.add_argument('outAD', type=argparse.FileType('w'), help="AD output file")
 parser.add_argument('outinfo', type=argparse.FileType('w'), help="Info output file")
-#args = parser.parse_args("test.vcf test.four --min_gq 30 --info AC,AN output_ad.txt output_info.txt".split(" "))
-args = parser.parse_args()
+args = parser.parse_args("test.vcf test.four --min_gq 30 --info AC,AN output_ad.txt output_info.txt".split(" "))
+#args = parser.parse_args()
 
 
 for line in args.vcf:
@@ -113,7 +113,7 @@ for line in args.four:
     if sample_name not in samples2index:
         continue
     
-    #Skip variant if itðs not in vcf file    
+    #Skip variant if it's not in vcf file    
     if variant_id not in id2gt:
         continue
         
